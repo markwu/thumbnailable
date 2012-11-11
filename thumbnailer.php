@@ -150,6 +150,58 @@ class Thumbnailer {
 
 	}
 
+    /**
+     * Method that gets fired when the eloquent model is being updated.
+     * Erases the previus file and any generated thumbnails
+     *
+     * @param  Model   $model
+     * @return bool
+     */
+    public static function updated( $model )
+    {
+
+        // skip if the model isn't thumbnailable
+        if ( !isset( $model::$thumbnailable ) ) {
+            return true;
+        }
+
+        // check that the model has fields configured for thumbnailing
+        if ( !( $fields = static::config( $model, 'fields' ) ) ) {
+            throw new \Exception("No fields configured for thumbnailing.");
+        }
+
+        $class = get_class($model);
+
+        // loop through each field to thumbnail
+        foreach( $fields as $field=>$info ) {
+            if($model->changed($field))
+            {
+                if ( !( $directory = static::config( $model, 'storage_dir', $field ) ) ) {
+                    continue;
+                }
+
+                // original file
+                $original_file = array_get($model->original, $field);
+
+                // strip the extension
+                $ext = File::extension($original_file);
+                $basename = rtrim( $original_file, $ext );
+                $len = strlen($basename);
+
+                // iterate through the directory, looking for files that start with
+                // the basename
+
+                $iterator = new DirectoryIterator($directory);
+                foreach( $iterator as $file ) {
+                    if ($file->isFile() && strpos( $file->getFilename(), $basename )===0 ) {
+                        if ( !File::delete( $file->getPathName() ) ) {
+                            throw new \Exception("Could not delete ".$file->getPathName()."." );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
 	/**
 	 * Method that gets fired when the eloquent model is being deleted.
